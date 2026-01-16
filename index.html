@@ -23,8 +23,11 @@
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.6);
             transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
         }
 
+        /* 按钮基础样式 */
         .btn {
             background-color: #0071e3;
             color: white;
@@ -32,11 +35,14 @@
             padding: 14px 28px;
             font-size: 16px;
             font-weight: 500;
-            transition: all 0.2s ease;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
             border: none;
             cursor: pointer;
             width: 100%;
             text-align: center;
+            position: relative;
+            overflow: hidden; /* 确保进度条不溢出 */
+            z-index: 1;
         }
 
         .btn:hover {
@@ -56,6 +62,42 @@
 
         .btn-secondary:hover {
             background-color: #d2d2d7;
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            border: 1px solid #d2d2d7;
+            color: #1d1d1f;
+        }
+        .btn-outline:hover {
+            background-color: #f5f5f7;
+            border-color: #0071e3;
+            color: #0071e3;
+        }
+
+        /* 倒计时动画条 */
+        .timer-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.15); /* 按钮文字为白色，深色遮罩表示倒计时 */
+            z-index: -1;
+            width: 100%;
+            transform-origin: left;
+        }
+
+        .timer-10s {
+            animation: timerShrink 10s linear forwards;
+        }
+
+        .timer-5s {
+            animation: timerShrink 5s linear forwards;
+        }
+
+        @keyframes timerShrink {
+            from { transform: scaleX(1); }
+            to { transform: scaleX(0); }
         }
 
         .highlight {
@@ -95,13 +137,30 @@
             margin-bottom: 20px;
             border: 1px solid rgba(0,0,0,0.05);
         }
+
+        .copyright {
+            margin-top: auto;
+            padding-top: 1rem;
+            border-top: 1px solid #f0f0f0;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #86868b;
+        }
+        
+        /* 笔记卡片样式 */
+        .note-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid #e5e7eb;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
     <div id="app" class="w-full max-w-md mx-auto">
-        <!-- Content will be injected here by JS -->
-    </div>
+        </div>
 
     <script>
         // --- 核心逻辑数据 ---
@@ -140,13 +199,21 @@
 
         // --- 游戏状态管理 ---
 
+        let timerInterval = null;
+
         const state = {
-            step: 0,
+            step: 0, // 0:首页, 1-10:题目, 11:胜利, 99:团灭(限时模式), -1:笔记
             scenario: {},
-            showAnswer: false
+            showAnswer: false,
+            mode: 'practice' // 'practice' | 'timeAttack'
         };
 
-        function initScenario() {
+        function initScenario(mode = 'practice') {
+            // 清除之前的定时器
+            clearTimer();
+
+            state.mode = mode;
+
             // 基础随机
             const role = ROLES[Math.floor(Math.random() * ROLES.length)];
             const shadowOrder = SHADOW_ORDERS[Math.floor(Math.random() * SHADOW_ORDERS.length)];
@@ -205,31 +272,94 @@
             state.step = 1;
             state.showAnswer = false;
             render();
+
+            // 如果是限时模式，开始第一题倒计时
+            if (state.mode === 'timeAttack') {
+                startQuestionTimer();
+            }
+        }
+
+        function showNotes() {
+            state.step = -1;
+            render();
         }
 
         function nextStep() {
+            clearTimer();
             state.step++;
             state.showAnswer = false;
             render();
+            
+            // 限时模式逻辑
+            if (state.step <= 10 && state.mode === 'timeAttack') {
+                startQuestionTimer();
+            }
         }
 
         function toggleAnswer() {
+            // 限时模式下，必须在倒计时结束前点击
+            if (state.mode === 'timeAttack') {
+                clearTimer(); // 停止思考倒计时
+            }
+
             state.showAnswer = !state.showAnswer;
             render();
+
+            // 限时模式下，显示答案5秒后自动跳转
+            if (state.mode === 'timeAttack' && state.showAnswer) {
+                startAnswerTimer();
+            }
         }
 
         function restart() {
+            clearTimer();
             state.step = 0;
             state.showAnswer = false;
+            state.mode = 'practice';
             render();
         }
 
+        // --- 限时模式 定时器逻辑 ---
+        
+        function clearTimer() {
+            if (timerInterval) {
+                clearTimeout(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function startQuestionTimer() {
+            clearTimer();
+            // 10秒后团灭
+            timerInterval = setTimeout(() => {
+                triggerGameOver();
+            }, 10000);
+        }
+
+        function startAnswerTimer() {
+            clearTimer();
+            // 5秒后下一题
+            timerInterval = setTimeout(() => {
+                if (state.step === 10) {
+                    nextStep(); // 去结算页
+                } else {
+                    nextStep();
+                }
+            }, 5000);
+        }
+
+        function triggerGameOver() {
+            clearTimer();
+            state.step = 99; // 团灭状态码
+            render();
+        }
+
+
         // --- 逻辑计算函数 ---
+        // (保持原有的逻辑计算函数不变)
 
         function getQ1Answer(s) {
             const isCardStack = s.tetherType.id === 'card_stack';
-            
-            // 映射表
             const logicMap = {
                 'A': { start: 'A', type: '大圈', idx: 1 },
                 '1': { start: 'A', type: '大圈', idx: 2 },
@@ -240,22 +370,16 @@
                 'D': { start: 'C', type: '大圈', idx: 1 },
                 '4': { start: 'C', type: '大圈', idx: 2 },
             };
-            
             const userLogic = logicMap[s.role];
-            
-            // 顺时针顺序：A, 1, B, 2, C, 3, D, 4
             const points = ['A', '1', 'B', '2', 'C', '3', 'D', '4'];
-            // 判定每个点位是分摊还是大圈
             const types = points.map(p => {
                 const isCard = ['A', 'B', 'C', 'D'].includes(p);
                 if (isCardStack) return isCard ? '分摊' : '大圈';
                 else return isCard ? '大圈' : '分摊';
             });
-            
             let startIndex = points.indexOf(userLogic.start);
             let count = 0;
             let targetPoint = '';
-            
             for (let i = 0; i < 8; i++) {
                 let currIdx = (startIndex + i) % 8;
                 if (types[currIdx] === userLogic.type) {
@@ -266,7 +390,6 @@
                     }
                 }
             }
-
             return `你需要去接 <span class="highlight">${targetPoint}点</span> 的 <span class="highlight">${userLogic.type}</span> 线。`;
         }
 
@@ -276,9 +399,8 @@
         }
 
         function getQ3Answer(s) {
-            // 塔的记忆检查
             if (s.tower.shouldSwap) {
-                return `需要<span class="danger">换塔</span>。稍后去处理同行的 <span class="highlight">${s.tower.final}塔</span>。`;
+                return `需要<span class="danger">换塔</span>。稍后处理隔壁的 <span class="highlight">${s.tower.final}塔</span>。`;
             } else {
                 return `<span class="highlight">不需要换塔</span>。稍后处理自己的 <span class="highlight">${s.tower.final}塔</span>。`;
             }
@@ -302,8 +424,6 @@
             const t = s.tower.final;
             let mech = '';
             let tetherLogic = '';
-
-            // 塔的处理逻辑 + 远近线
             if (t === '风') {
                 mech = '站在塔靠近场中的边缘，被击飞至对面，躲避石笋。';
                 tetherLogic = '在目标内圈<span class="purple">右侧</span>贴边处理<span class="purple">远点名</span>。';
@@ -317,23 +437,19 @@
                 mech = '不动，等热病buff解除。';
                 tetherLogic = '处理闲人引导。';
             }
-
             return `<span class="font-bold">${mech}</span><br>随后：${tetherLogic}`;
         }
 
         function getQ6Answer(s) {
-            // 纯记忆检查
             const aType = s.initialAdds.id;
             const jump = s.secondAddJump.id;
             let safeSpot = '';
-
-            // 计算逻辑同最终结算
             if (aType === 'A_LR_C_UD') {
                 if (jump === 'SuckA_JumpB') safeSpot = 'B点内侧';
                 else if (jump === 'SuckA_JumpD') safeSpot = 'D点内侧';
                 else if (jump === 'SuckC_JumpB') safeSpot = 'B点左右';
                 else if (jump === 'SuckC_JumpD') safeSpot = 'D点左右';
-            } else { // A_UD_C_LR
+            } else { 
                 if (jump === 'SuckA_JumpB') safeSpot = 'B点左右';
                 else if (jump === 'SuckA_JumpD') safeSpot = 'D点左右';
                 else if (jump === 'SuckC_JumpB') safeSpot = 'B点内侧';
@@ -343,7 +459,6 @@
         }
 
         function getQ7Answer(s) {
-            // 第一次分摊
             if (s.shadowOrder.id === 'card_first') {
                 return '双T去 <span class="highlight">C</span>，远程组去 <span class="highlight">B</span>，近战去 <span class="highlight">2</span>';
             } else {
@@ -352,7 +467,6 @@
         }
 
         function getQ8Answer(s) {
-            // 第一次场地结算
             const aType = s.initialAdds.id;
             const jump = s.secondAddJump.id;
             if (aType === 'A_LR_C_UD') {
@@ -369,7 +483,6 @@
         }
 
         function getQ9Answer(s) {
-            // 第二次分摊
             if (s.shadowOrder.id === 'card_first') {
                 return '双T去 <span class="highlight">3</span>，远程组去 <span class="highlight">2</span>，近战去 <span class="highlight">C</span>';
             } else {
@@ -378,10 +491,8 @@
         }
 
         function getQ10Answer(s) {
-            // 第二次场地结算
-            const aType = s.initialAdds.id; 
-            const jump = s.secondAddJump.id;
-             
+             const aType = s.initialAdds.id; 
+             const jump = s.secondAddJump.id;
              if (aType === 'A_LR_C_UD') {
                  if (jump.startsWith('SuckA')) return 'BOSS脚底 (正中间)';
                  return 'B/D标点外侧';
@@ -397,6 +508,9 @@
         function render() {
             const app = document.getElementById('app');
             let content = '';
+            
+            // 是否是限时模式
+            const isTimeAttack = state.mode === 'timeAttack';
 
             if (state.step === 0) {
                 // 封面
@@ -408,8 +522,60 @@
                            </div>
                         </div>
                         <h1 class="text-3xl font-bold mb-2 tracking-tight">M12S四运模拟器</h1>
-                        <p class="text-gray-500 mb-8 font-medium">本模拟器适配CCHH特化打法（BRO改）</p>
-                        <button class="btn shadow-lg shadow-blue-500/30" onclick="initScenario()">冲刺！</button>
+                        <p class="text-gray-500 mb-6 font-medium">本模拟器适配CCHH特化打法（BRO改）</p>
+                        
+                        <div class="space-y-3 mb-4">
+                            <button class="btn shadow-lg shadow-blue-500/30" onclick="initScenario('practice')">练习模式</button>
+                            <button class="btn bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/30" onclick="initScenario('timeAttack')">
+                                限时模式
+                            </button>
+                            <button class="btn btn-outline" onclick="showNotes()">防猪笔记</button>
+                        </div>
+                        <div class="copyright">Design by 发芽黒不点</div>
+                    </div>
+                `;
+            } else if (state.step === -1) {
+                // 复习笔记页面
+                content = `
+                     <div class="card p-6 fade-in h-full">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold">防猪笔记</h2>
+                            <button class="text-sm text-blue-600 font-medium" onclick="restart()">返回</button>
+                        </div>
+                        <div class="overflow-y-auto max-h-[60vh] pr-2">
+                            <div class="note-card">
+                                <h3 class="font-bold text-gray-800 mb-2">接线防猪宏</h3>
+                                <p class="text-gray-500 text-sm">A点连线<br>/e 接A顺1圈<br>/e 1点大圈→2点分摊<br><br>1点连线<br>/e 接A顺2圈<br>/e 2点分摊→1点大圈<br><br>B点连线<br>/e 接A顺1摊<br>/e 2点分摊→2点分摊<br><br>2点连线<br>/e 接A顺2摊<br>/e 2点分摊→2点分摊<br><br>C点连线<br>/e 接C顺1摊<br>/e 3点分摊→3点分摊<br><br>3点连线<br>/e 接C顺2摊<br>/e 3点分摊→3点分摊<br><br>D点连线<br>/e 接C顺1圈<br>/e 4点大圈→3点分摊<br><br>4点连线<br>/e 接C顺2圈<br>/e 3点分摊→4点大圈</p>
+                            </div>
+                            <div class="note-card">
+                                <h3 class="font-bold text-gray-800 mb-2">正斜分身</h3>
+                                <p class="text-gray-500 text-sm">/p —————正点分身—————<br>/p 回溯1：双T去C，远程组B，近战2<br>/p 回溯2：双T去3，远程组2，近战C<br>/p —————斜点分身—————<br>/p 回溯1：双T去3，远程组2，近战C<br>/p 回溯2：双T去C，远程组B，近战2</p>
+                            </div>
+                            <div class="note-card">
+                                <h3 class="font-bold text-gray-800 mb-2">分身安全区</h3>
+                                <p class="text-gray-500 text-sm">/p A打前后，C打左右，14安全<br>/p A打左右，C打前后，23外安全</p>
+                            </div>
+                             <div class="note-card">
+                                <h3 class="font-bold text-gray-800 mb-2">踩塔防猪宏</h3>
+                                <p class="text-gray-500 text-sm">/e 我是暗，近buff<br> /e 我是风，远buff<br> /e 要换塔</p>
+                            </div>
+                             <div class="note-card">
+                                <h3 class="font-bold text-gray-800 mb-2">黑洞跳跃速记</h3>
+                                <p class="text-gray-500 text-sm">/p 左右安全→BD安全<br>/p 内安全→场正中安全</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.step === 99) {
+                // 限时模式 - 团灭
+                content = `
+                    <div class="card p-8 text-center fade-in border-red-200">
+                        <h2 class="text-3xl font-bold mb-4 text-red-600">死了啦！</h2>
+                        <div class="mb-6 flex justify-center">
+                             <div class="text-6xl">🐷</div>
+                        </div>
+                        <p class="text-gray-600 mb-8 font-medium">犹豫就会爆炸。<br>出门严肃学习文档！</p>
+                        <button class="btn bg-gray-800 hover:bg-gray-900" onclick="restart()">不是很服</button>
                     </div>
                 `;
             } else if (state.step === 11) {
@@ -436,6 +602,7 @@
                 switch(state.step) {
                     case 1:
                         qTitle = "1. 影子与接线";
+                        // 阶段1：限时模式也显示提示
                         qContext = `
                             <div class="info-box">
                                 <p class="mb-1"><span class="text-gray-500">影子刷新:</span> <span class="font-medium">${s.shadowOrder.text}</span></p>
@@ -448,6 +615,7 @@
                         break;
                     case 2:
                         qTitle = "2. 处理上下左右刀";
+                        // 阶段2：限时模式也显示提示
                         qContext = `
                             <div class="info-box">
                                 <p><span class="text-gray-500">初始预兆:</span> <span class="font-bold">${s.initialAdds.text}</span></p>
@@ -458,6 +626,7 @@
                         break;
                     case 3:
                         qTitle = "3. 圣餐与塔预兆";
+                        // 阶段3：限时模式也显示提示
                         qContext = `
                             <div class="info-box border-l-4 border-yellow-400">
                                 <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现</p>
@@ -477,79 +646,107 @@
                                 </div>
                             </div>
                         `;
-                        qText = "根据你的位置和点名状态，稍后处理塔时需要换位吗？";
+                        qText = "根据你的位置和点名状态，稍后处理塔时需要怎么处理？";
                         aText = getQ3Answer(s);
                         break;
                     case 4:
                         qTitle = "4. 处理连线点名";
-                        qContext = `
-                            <div class="info-box">
-                                <p class="text-gray-500 text-sm">小怪即将发动攻击...</p>
-                            </div>
-                        `;
+                        // 阶段4：限时模式隐藏提示
+                        if (!isTimeAttack) {
+                            qContext = `
+                                <div class="info-box">
+                                    <p class="text-gray-500 text-sm">切换回初始场地...</p>
+                                </div>
+                            `;
+                        }
                         qText = `${roleBadge} 你需要按什么顺序处理小怪点名？`;
                         aText = getQ4Answer(s);
                         break;
                     case 5:
                         qTitle = "5. 塔机制与远近线";
-                        qContext = `
-                            <div class="info-box">
-                                <p class="text-gray-500 text-sm">塔判定即将开始...</p>
-                                <p class="text-sm font-medium mt-1">你最终处理 <span class="highlight">${s.tower.final}塔</span></p>
-                            </div>
-                        `;
-                        qText = "请描述塔的处理方式，以及随后的远近线引导位置。";
+                        // 阶段5：限时模式隐藏提示
+                        if (!isTimeAttack) {
+                            qContext = `
+                                <div class="info-box">
+                                    <p class="text-gray-500 text-sm">切换到小世界...</p>
+                                    <p class="text-sm font-medium mt-1">你最终处理 <span class="highlight">${s.tower.final}塔</span></p>
+                                </div>
+                            `;
+                        }
+                        qText = "请描述塔及后续小世界机制的处理方式。";
                         aText = getQ5Answer(s);
                         break;
                     case 6:
                         qTitle = "6. 记忆分身跳跃";
-                        qContext = `
-                            <div class="info-box border-l-4 border-purple-400">
-                                <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现 (请记忆)</p>
-                                <p><span class="text-gray-500">初始小怪:</span> <span class="font-medium">${s.initialAdds.text}</span></p>
-                                <p class="mt-1"><span class="text-gray-500">黑洞跳跃:</span> <span class="danger text-lg">${s.secondAddJump.text}</span></p>
-                            </div>
-                        `;
-                        qText = "结合初始小怪和跳跃方向，稍后第一次跳跃的安全区在哪里？";
+                        // 阶段6：限时模式只展示 Jump 提示
+                        if (isTimeAttack) {
+                             qContext = `
+                                <div class="info-box border-l-4 border-purple-400">
+                                    <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现</p>
+                                    <p class="mt-1"><span class="text-gray-500">黑洞跳跃:</span> <span class="danger text-lg">${s.secondAddJump.text}</span></p>
+                                </div>
+                            `;
+                        } else {
+                            qContext = `
+                                <div class="info-box border-l-4 border-purple-400">
+                                    <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现</p>
+                                    <p><span class="text-gray-500">初始小怪:</span> <span class="font-medium">${s.initialAdds.text}</span></p>
+                                    <p class="mt-1"><span class="text-gray-500">黑洞跳跃:</span> <span class="danger text-lg">${s.secondAddJump.text}</span></p>
+                                </div>
+                            `;
+                        }
+                        qText = "稍后第一次结算的安全区在哪里？";
                         aText = getQ6Answer(s);
                         break;
                     case 7:
                         qTitle = "7. 第一次分摊/大圈";
-                        qContext = `
-                            <div class="info-box">
-                                <p class="text-gray-500 text-sm">影子顺序回顾：${s.shadowOrder.text}</p>
-                            </div>
-                        `;
-                        qText = "第一轮影子结算。双T、远程、近战分别去哪里？";
+                        // 阶段7：限时模式隐藏提示
+                        if (!isTimeAttack) {
+                            qContext = `
+                                <div class="info-box">
+                                    <p class="text-gray-500 text-sm">影子顺序回顾：${s.shadowOrder.text}</p>
+                                </div>
+                            `;
+                        }
+                        qText = "第一轮影子结算。去哪里处理？";
                         aText = getQ7Answer(s);
                         break;
                     case 8:
                         qTitle = "8. 第一次场地安全区";
-                        qContext = `
-                            <div class="info-box">
-                                <p class="text-gray-500 text-sm">现在分身跳跃落地...</p>
-                            </div>
-                        `;
+                        // 阶段8：限时模式隐藏提示
+                        if (!isTimeAttack) {
+                            qContext = `
+                                <div class="info-box">
+                                    <p class="text-gray-500 text-sm">切换到小世界...</p>
+                                </div>
+                            `;
+                        }
                         qText = "前往刚才记忆的安全区。是哪里？";
                         aText = getQ8Answer(s);
                         break;
                     case 9:
                         qTitle = "9. 第二次分摊/大圈";
-                        qContext = `
-                            <div class="info-box">
-                                <p class="text-gray-500 text-sm">影子顺序回顾：${s.shadowOrder.text}</p>
-                            </div>
-                        `;
+                        // 阶段9：限时模式隐藏提示
+                        if (!isTimeAttack) {
+                            qContext = `
+                                <div class="info-box">
+                                    <p class="text-gray-500 text-sm">影子顺序回顾：${s.shadowOrder.text}</p>
+                                </div>
+                            `;
+                        }
                         qText = "第二轮影子结算。去哪里处理？";
                         aText = getQ9Answer(s);
                         break;
                     case 10:
                         qTitle = "10. 第二次场地安全区";
-                        qContext = `
-                            <div class="info-box">
-                                <p class="text-gray-500 text-sm">最后一次跳跃结算...</p>
-                            </div>
-                        `;
+                        // 阶段10：限时模式隐藏提示
+                        if (!isTimeAttack) {
+                            qContext = `
+                                <div class="info-box">
+                                    <p class="text-gray-500 text-sm">切换回初识场地...</p>
+                                </div>
+                            `;
+                        }
                         qText = "最后的安全区在哪里？";
                         aText = getQ10Answer(s);
                         break;
@@ -557,6 +754,8 @@
 
                 content = `
                     <div class="card p-6 fade-in relative overflow-hidden">
+                        ${isTimeAttack ? `<span class="absolute top-4 right-4 text-xs font-bold text-orange-500 border border-orange-200 bg-orange-50 px-2 py-1 rounded">限时模式</span>` : ''}
+                        
                         <div class="phase-indicator bg-blue-500 absolute top-0 left-0" style="width: ${(state.step / 10) * 100}%"></div>
                         
                         <div class="flex justify-between items-center mb-6 mt-2">
@@ -579,9 +778,15 @@
                                 </div>
                                 <div class="text-gray-800 leading-relaxed pl-7">${aText}</div>
                             </div>
-                            <button class="btn" onclick="nextStep()">${state.step === 10 ? '完成演练' : '下一题'}</button>
+                            <button class="btn" onclick="nextStep()">
+                                ${isTimeAttack ? '<div class="timer-bar timer-5s"></div>' : ''}
+                                ${state.step === 10 ? '完成演练' : (isTimeAttack ? '下一题 (自动)' : '下一题')}
+                            </button>
                         ` : `
-                            <button class="btn btn-secondary" onclick="toggleAnswer()">查看答案</button>
+                            <button class="btn btn-secondary ${isTimeAttack ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : ''}" onclick="toggleAnswer()">
+                                ${isTimeAttack ? '<div class="timer-bar timer-10s"></div>' : ''}
+                                查看答案
+                            </button>
                         `}
                     </div>
                 `;
