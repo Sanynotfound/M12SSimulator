@@ -278,9 +278,9 @@
         function getQ3Answer(s) {
             // 塔的记忆检查
             if (s.tower.shouldSwap) {
-                return `你需要<span class="danger">换塔</span>。稍微去处理同行的 <span class="highlight">${s.tower.final}塔</span>。`;
+                return `需要<span class="danger">换塔</span>。稍后去处理同行的 <span class="highlight">${s.tower.final}塔</span>。`;
             } else {
-                return `你<span class="highlight">不需要换塔</span>。稍后处理自己的 <span class="highlight">${s.tower.final}塔</span>。`;
+                return `<span class="highlight">不需要换塔</span>。稍后处理自己的 <span class="highlight">${s.tower.final}塔</span>。`;
             }
         }
 
@@ -305,7 +305,7 @@
 
             // 塔的处理逻辑 + 远近线
             if (t === '风') {
-                mech = '背对场中，被击飞至对面，躲避石笋。';
+                mech = '站在塔靠近场中的边缘，被击飞至对面，躲避石笋。';
                 tetherLogic = '在目标内圈<span class="purple">右侧</span>贴边处理<span class="purple">远点名</span>。';
             } else if (t === '暗') {
                 mech = '站在塔内向场外引导激光，躲避石笋。';
@@ -384,9 +384,9 @@
              
              if (aType === 'A_LR_C_UD') {
                  if (jump.startsWith('SuckA')) return 'BOSS脚底 (正中间)';
-                 return 'B/D外侧 (去没有小怪的一侧)';
+                 return 'B/D标点外侧';
              } else {
-                 if (jump.startsWith('SuckA')) return 'B/D外侧 (去没有小怪的一侧)';
+                 if (jump.startsWith('SuckA')) return 'B/D标点外侧';
                  return 'BOSS脚底 (正中间)';
              }
         }
@@ -408,7 +408,7 @@
                            </div>
                         </div>
                         <h1 class="text-3xl font-bold mb-2 tracking-tight">M12S四运模拟器</h1>
-                        <p class="text-gray-500 mb-8 font-medium">本模拟器适配CCHH特化打法（BRO改） • v2.1</p>
+                        <p class="text-gray-500 mb-8 font-medium">本模拟器适配CCHH特化打法（BRO改）</p>
                         <button class="btn shadow-lg shadow-blue-500/30" onclick="initScenario()">冲刺！</button>
                     </div>
                 `;
@@ -460,7 +460,7 @@
                         qTitle = "3. 圣餐与塔预兆";
                         qContext = `
                             <div class="info-box border-l-4 border-yellow-400">
-                                <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现 (请记忆)</p>
+                                <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现</p>
                                 <div class="grid grid-cols-2 gap-2 text-sm">
                                     <div>
                                         <div class="text-gray-500">你的初始位置</div>
@@ -495,7 +495,7 @@
                         qContext = `
                             <div class="info-box">
                                 <p class="text-gray-500 text-sm">塔判定即将开始...</p>
-                                <p class="text-sm font-medium mt-1">回顾：你最终处理 <span class="highlight">${s.tower.final}塔</span></p>
+                                <p class="text-sm font-medium mt-1">你最终处理 <span class="highlight">${s.tower.final}塔</span></p>
                             </div>
                         `;
                         qText = "请描述塔的处理方式，以及随后的远近线引导位置。";
