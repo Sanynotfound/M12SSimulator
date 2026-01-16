@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿卡狄亚登天斗技场重量级4 文字模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            transition: all 0.3s ease;
+        }
+
+        .btn {
+            background-color: #0071e3;
+            color: white;
+            border-radius: 980px;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background-color: #0077ed;
+            transform: scale(1.01);
+            box-shadow: 0 4px 12px rgba(0, 113, 227, 0.3);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background-color: #e8e8ed;
+            color: #1d1d1f;
+        }
+
+        .btn-secondary:hover {
+            background-color: #d2d2d7;
+        }
+
+        .highlight {
+            color: #0071e3;
+            font-weight: 700;
+        }
+
+        .danger {
+            color: #ff3b30;
+            font-weight: 700;
+        }
+
+        .purple {
+            color: #af52de;
+            font-weight: 700;
+        }
+        
+        .phase-indicator {
+            height: 4px;
+            border-radius: 2px;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .info-box {
+            background-color: #f5f5f7;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="w-full max-w-md mx-auto">
+        <!-- Content will be injected here by JS -->
+    </div>
+
+    <script>
+        // --- 核心逻辑数据 ---
+
+        const ROLES = ['A', '1', 'B', '2', 'C', '3', 'D', '4'];
+        
+        // 影子刷新次序
+        const SHADOW_ORDERS = [
+            { id: 'card_first', text: '先正点，后斜点' },
+            { id: 'inter_first', text: '先斜点，后正点' }
+        ];
+
+        // 初始小怪预兆 (2)
+        const INITIAL_ADDS = [
+            { id: 'A_LR_C_UD', text: 'A点左右刀，C点上下刀' },
+            { id: 'A_UD_C_LR', text: 'A点上下刀，C点左右刀' }
+        ];
+
+        // 小怪点名类型 (3)
+        const ADD_TETHER_TYPES = [
+            { id: 'card_stack', text: '正点分摊，斜点大圈' }, 
+            { id: 'card_spread', text: '正点大圈，斜点分摊' } 
+        ];
+
+        // 塔的数据生成逻辑
+        const SPECIAL_TOWERS = ['风', '暗'];
+        const NORMAL_TOWERS = ['土', '火'];
+
+        // 小怪黑洞/跳跃 (8)
+        const SECOND_ADD_JUMPS = [
+            { id: 'SuckA_JumpB', text: '吸A，C点小怪跳B' },
+            { id: 'SuckA_JumpD', text: '吸A，C点小怪跳D' },
+            { id: 'SuckC_JumpB', text: '吸C，A点小怪跳B' },
+            { id: 'SuckC_JumpD', text: '吸C，A点小怪跳D' }
+        ];
+
+        // --- 游戏状态管理 ---
+
+        const state = {
+            step: 0,
+            scenario: {},
+            showAnswer: false
+        };
+
+        function initScenario() {
+            // 基础随机
+            const role = ROLES[Math.floor(Math.random() * ROLES.length)];
+            const shadowOrder = SHADOW_ORDERS[Math.floor(Math.random() * SHADOW_ORDERS.length)];
+            const initialAdds = INITIAL_ADDS[Math.floor(Math.random() * INITIAL_ADDS.length)];
+            const tetherType = ADD_TETHER_TYPES[Math.floor(Math.random() * ADD_TETHER_TYPES.length)];
+            const secondAddJump = SECOND_ADD_JUMPS[Math.floor(Math.random() * SECOND_ADD_JUMPS.length)];
+
+            // 塔逻辑生成
+            const special = SPECIAL_TOWERS[Math.floor(Math.random() * SPECIAL_TOWERS.length)];
+            const normal = NORMAL_TOWERS[Math.floor(Math.random() * NORMAL_TOWERS.length)];
+            
+            // 决定玩家初始是在特殊塔还是普通塔
+            const isUserAtSpecial = Math.random() < 0.5;
+            const myInitTower = isUserAtSpecial ? special : normal;
+            const neighborTower = isUserAtSpecial ? normal : special;
+
+            // 决定这一行谁有点名 (Debuff)
+            const userHasDebuff = Math.random() < 0.5;
+            
+            // 计算最终处理的塔
+            let swap = false;
+            let finalTower = myInitTower;
+
+            if (isUserAtSpecial) { // 我初始在风/暗
+                if (userHasDebuff) {
+                    swap = true; // 我有debuff，不能处理风/暗，要去换队友的土/火
+                    finalTower = neighborTower;
+                } else {
+                    swap = false; // 我没debuff，队友有debuff在土/火，大家都不动
+                    finalTower = myInitTower;
+                }
+            } else { // 我初始在土/火
+                if (userHasDebuff) {
+                    swap = false; // 我有debuff，在土/火很安全，不动
+                    finalTower = myInitTower;
+                } else {
+                    swap = true; // 我没debuff，意味着队友在风/暗且有debuff，他要过来，我要过去
+                    finalTower = neighborTower;
+                }
+            }
+
+            state.scenario = {
+                role,
+                shadowOrder,
+                initialAdds,
+                tetherType,
+                secondAddJump,
+                tower: {
+                    myInit: myInitTower,
+                    neighbor: neighborTower,
+                    hasDebuff: userHasDebuff,
+                    shouldSwap: swap,
+                    final: finalTower
+                }
+            };
+            state.step = 1;
+            state.showAnswer = false;
+            render();
+        }
+
+        function nextStep() {
+            state.step++;
+            state.showAnswer = false;
+            render();
+        }
+
+        function toggleAnswer() {
+            state.showAnswer = !state.showAnswer;
+            render();
+        }
+
+        function restart() {
+            state.step = 0;
+            state.showAnswer = false;
+            render();
+        }
+
+        // --- 逻辑计算函数 ---
+
+        function getQ1Answer(s) {
+            const isCardStack = s.tetherType.id === 'card_stack';
+            
+            // 映射表
+            const logicMap = {
+                'A': { start: 'A', type: '大圈', idx: 1 },
+                '1': { start: 'A', type: '大圈', idx: 2 },
+                'B': { start: 'A', type: '分摊', idx: 1 },
+                '2': { start: 'A', type: '分摊', idx: 2 },
+                'C': { start: 'C', type: '分摊', idx: 1 },
+                '3': { start: 'C', type: '分摊', idx: 2 },
+                'D': { start: 'C', type: '大圈', idx: 1 },
+                '4': { start: 'C', type: '大圈', idx: 2 },
+            };
+            
+            const userLogic = logicMap[s.role];
+            
+            // 顺时针顺序：A, 1, B, 2, C, 3, D, 4
+            const points = ['A', '1', 'B', '2', 'C', '3', 'D', '4'];
+            // 判定每个点位是分摊还是大圈
+            const types = points.map(p => {
+                const isCard = ['A', 'B', 'C', 'D'].includes(p);
+                if (isCardStack) return isCard ? '分摊' : '大圈';
+                else return isCard ? '大圈' : '分摊';
+            });
+            
+            let startIndex = points.indexOf(userLogic.start);
+            let count = 0;
+            let targetPoint = '';
+            
+            for (let i = 0; i < 8; i++) {
+                let currIdx = (startIndex + i) % 8;
+                if (types[currIdx] === userLogic.type) {
+                    count++;
+                    if (count === userLogic.idx) {
+                        targetPoint = points[currIdx];
+                        break;
+                    }
+                }
+            }
+
+            return `你需要去接 <span class="highlight">${targetPoint}点</span> 的 <span class="highlight">${userLogic.type}</span> 线。`;
+        }
+
+        function getQ2Answer(s) {
+            if (s.initialAdds.id === 'A_LR_C_UD') return '安全区在 <span class="highlight">2点 或 3点</span> 的外侧。';
+            return '安全区在 <span class="highlight">1点 或 4点</span> 的外侧。';
+        }
+
+        function getQ3Answer(s) {
+            // 塔的记忆检查
+            if (s.tower.shouldSwap) {
+                return `你需要<span class="danger">换塔</span>。稍微去处理同行的 <span class="highlight">${s.tower.final}塔</span>。`;
+            } else {
+                return `你<span class="highlight">不需要换塔</span>。稍后处理自己的 <span class="highlight">${s.tower.final}塔</span>。`;
+            }
+        }
+
+        function getQ4Answer(s) {
+            const map = {
+                'A': '1点大圈 &rarr; 2点分摊',
+                '1': '2点分摊 &rarr; 1点大圈',
+                'B': '2点分摊 &rarr; 2点分摊',
+                '2': '2点分摊 &rarr; 2点分摊',
+                'C': '3点分摊 &rarr; 3点分摊',
+                '3': '3点分摊 &rarr; 3点分摊',
+                'D': '4点大圈 &rarr; 3点分摊',
+                '4': '3点分摊 &rarr; 4点大圈'
+            };
+            return map[s.role];
+        }
+
+        function getQ5Answer(s) {
+            const t = s.tower.final;
+            let mech = '';
+            let tetherLogic = '';
+
+            // 塔的处理逻辑 + 远近线
+            if (t === '风') {
+                mech = '背对场中，被击飞至对面，躲避石笋。';
+                tetherLogic = '在目标内圈<span class="purple">右侧</span>贴边处理<span class="purple">远点名</span>。';
+            } else if (t === '暗') {
+                mech = '站在塔内向场外引导激光，躲避石笋。';
+                tetherLogic = '前往目标内圈<span class="purple">中间</span>处理<span class="purple">近点名</span>。';
+            } else if (t === '土') {
+                mech = '离开原地（去没塔的地方），躲避石笋。';
+                tetherLogic = '处理闲人引导。';
+            } else if (t === '火') {
+                mech = '不动，等热病buff解除。';
+                tetherLogic = '处理闲人引导。';
+            }
+
+            return `<span class="font-bold">${mech}</span><br>随后：${tetherLogic}`;
+        }
+
+        function getQ6Answer(s) {
+            // 纯记忆检查
+            const aType = s.initialAdds.id;
+            const jump = s.secondAddJump.id;
+            let safeSpot = '';
+
+            // 计算逻辑同最终结算
+            if (aType === 'A_LR_C_UD') {
+                if (jump === 'SuckA_JumpB') safeSpot = 'B点内侧';
+                else if (jump === 'SuckA_JumpD') safeSpot = 'D点内侧';
+                else if (jump === 'SuckC_JumpB') safeSpot = 'B点左右';
+                else if (jump === 'SuckC_JumpD') safeSpot = 'D点左右';
+            } else { // A_UD_C_LR
+                if (jump === 'SuckA_JumpB') safeSpot = 'B点左右';
+                else if (jump === 'SuckA_JumpD') safeSpot = 'D点左右';
+                else if (jump === 'SuckC_JumpB') safeSpot = 'B点内侧';
+                else if (jump === 'SuckC_JumpD') safeSpot = 'D点内侧';
+            }
+            return `记住：稍后的安全区在 <span class="highlight">${safeSpot}</span>`;
+        }
+
+        function getQ7Answer(s) {
+            // 第一次分摊
+            if (s.shadowOrder.id === 'card_first') {
+                return '双T去 <span class="highlight">C</span>，远程组去 <span class="highlight">B</span>，近战去 <span class="highlight">2</span>';
+            } else {
+                return '双T去 <span class="highlight">3</span>，远程组去 <span class="highlight">2</span>，近战去 <span class="highlight">C</span>';
+            }
+        }
+
+        function getQ8Answer(s) {
+            // 第一次场地结算
+            const aType = s.initialAdds.id;
+            const jump = s.secondAddJump.id;
+            if (aType === 'A_LR_C_UD') {
+                if (jump === 'SuckA_JumpB') return 'B内安全';
+                if (jump === 'SuckA_JumpD') return 'D内安全';
+                if (jump === 'SuckC_JumpB') return 'B左右安全';
+                if (jump === 'SuckC_JumpD') return 'D左右安全';
+            } else { 
+                if (jump === 'SuckA_JumpB') return 'B左右安全';
+                if (jump === 'SuckA_JumpD') return 'D左右安全';
+                if (jump === 'SuckC_JumpB') return 'B内安全';
+                if (jump === 'SuckC_JumpD') return 'D内安全';
+            }
+        }
+
+        function getQ9Answer(s) {
+            // 第二次分摊
+            if (s.shadowOrder.id === 'card_first') {
+                return '双T去 <span class="highlight">3</span>，远程组去 <span class="highlight">2</span>，近战去 <span class="highlight">C</span>';
+            } else {
+                return '双T去 <span class="highlight">C</span>，远程组去 <span class="highlight">B</span>，近战去 <span class="highlight">2</span>';
+            }
+        }
+
+        function getQ10Answer(s) {
+            // 第二次场地结算
+            const aType = s.initialAdds.id; 
+            const jump = s.secondAddJump.id;
+             
+             if (aType === 'A_LR_C_UD') {
+                 if (jump.startsWith('SuckA')) return 'BOSS脚底 (正中间)';
+                 return 'B/D外侧 (去没有小怪的一侧)';
+             } else {
+                 if (jump.startsWith('SuckA')) return 'B/D外侧 (去没有小怪的一侧)';
+                 return 'BOSS脚底 (正中间)';
+             }
+        }
+
+
+        // --- 渲染逻辑 ---
+
+        function render() {
+            const app = document.getElementById('app');
+            let content = '';
+
+            if (state.step === 0) {
+                // 封面
+                content = `
+                    <div class="card p-8 text-center fade-in">
+                        <div class="mb-6 rounded-xl overflow-hidden shadow-lg border border-gray-200">
+                           <div class="w-full h-48 bg-gray-100 flex items-center justify-center relative">
+                                <img src="cover.jpeg" alt="Cover" class="w-full h-full object-cover" onerror="this.parentElement.innerText='封面图: cover.jpeg'">
+                           </div>
+                        </div>
+                        <h1 class="text-3xl font-bold mb-2 tracking-tight">M12S四运模拟器</h1>
+                        <p class="text-gray-500 mb-8 font-medium">本模拟器适配CCHH特化打法（BRO改） • v2.1</p>
+                        <button class="btn shadow-lg shadow-blue-500/30" onclick="initScenario()">冲刺！</button>
+                    </div>
+                `;
+            } else if (state.step === 11) {
+                // 结束
+                content = `
+                    <div class="card p-8 text-center fade-in">
+                        <h2 class="text-2xl font-bold mb-4">中！</h2>
+                        <div class="mb-6 flex justify-center">
+                            <img src="pig.gif" alt="Success" class="w-32 h-32 object-contain" onerror="this.src='https://raw.githubusercontent.com/Tarikul-Islam-Anik/Animated-Fluent-Emojis/master/Emojis/Animals/Pig.png'">
+                        </div>
+                        <p class="text-gray-600 mb-8">机制是碎的，攻略是碎的，我的脑子也是碎的</p>
+                        <button class="btn" onclick="restart()">马冬梅？再来一局</button>
+                    </div>
+                `;
+            } else {
+                // 模拟进行中
+                const s = state.scenario;
+                let qTitle = '', qContext = '', qText = '', aText = '';
+                
+                // 通用角色标签
+                const roleBadge = `<span class="inline-flex items-center bg-gray-900 text-white px-2.5 py-1 rounded-md text-sm font-bold mr-2 shadow-sm">我是 ${s.role}</span>`;
+                
+                // 状态机
+                switch(state.step) {
+                    case 1:
+                        qTitle = "1. 影子与接线";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="mb-1"><span class="text-gray-500">影子刷新:</span> <span class="font-medium">${s.shadowOrder.text}</span></p>
+                                <p class="mb-1"><span class="text-gray-500">小怪点名:</span> <span class="font-medium">${s.tetherType.text}</span></p>
+                                <p><span class="text-gray-500">我的连线:</span> <span class="font-bold text-blue-600">影子 ${s.role}</span></p>
+                            </div>
+                        `;
+                        qText = `${roleBadge} 结合影子顺序和点名类型，你需要去接哪根线？`;
+                        aText = getQ1Answer(s);
+                        break;
+                    case 2:
+                        qTitle = "2. 处理上下左右刀";
+                        qContext = `
+                            <div class="info-box">
+                                <p><span class="text-gray-500">初始预兆:</span> <span class="font-bold">${s.initialAdds.text}</span></p>
+                            </div>
+                        `;
+                        qText = "接线锁定后，你需要去哪里躲避？";
+                        aText = getQ2Answer(s);
+                        break;
+                    case 3:
+                        qTitle = "3. 圣餐与塔预兆";
+                        qContext = `
+                            <div class="info-box border-l-4 border-yellow-400">
+                                <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现 (请记忆)</p>
+                                <div class="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                        <div class="text-gray-500">你的初始位置</div>
+                                        <div class="font-bold text-lg">${s.tower.myInit}塔</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-gray-500">隔壁队友</div>
+                                        <div class="font-bold text-lg">${s.tower.neighbor}塔</div>
+                                    </div>
+                                </div>
+                                <div class="mt-3 pt-3 border-t border-gray-200">
+                                    <span class="text-gray-500">你的状态:</span> 
+                                    ${s.tower.hasDebuff ? '<span class="danger bg-red-50 px-2 py-0.5 rounded">有点名 (Debuff)</span>' : '<span class="text-gray-600">无点名</span>'}
+                                </div>
+                            </div>
+                        `;
+                        qText = "根据你的位置和点名状态，稍后处理塔时需要换位吗？";
+                        aText = getQ3Answer(s);
+                        break;
+                    case 4:
+                        qTitle = "4. 处理连线点名";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="text-gray-500 text-sm">小怪即将发动攻击...</p>
+                            </div>
+                        `;
+                        qText = `${roleBadge} 你需要按什么顺序处理小怪点名？`;
+                        aText = getQ4Answer(s);
+                        break;
+                    case 5:
+                        qTitle = "5. 塔机制与远近线";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="text-gray-500 text-sm">塔判定即将开始...</p>
+                                <p class="text-sm font-medium mt-1">回顾：你最终处理 <span class="highlight">${s.tower.final}塔</span></p>
+                            </div>
+                        `;
+                        qText = "请描述塔的处理方式，以及随后的远近线引导位置。";
+                        aText = getQ5Answer(s);
+                        break;
+                    case 6:
+                        qTitle = "6. 记忆分身跳跃";
+                        qContext = `
+                            <div class="info-box border-l-4 border-purple-400">
+                                <p class="text-sm text-gray-400 uppercase tracking-wide mb-2">预兆出现 (请记忆)</p>
+                                <p><span class="text-gray-500">初始小怪:</span> <span class="font-medium">${s.initialAdds.text}</span></p>
+                                <p class="mt-1"><span class="text-gray-500">黑洞跳跃:</span> <span class="danger text-lg">${s.secondAddJump.text}</span></p>
+                            </div>
+                        `;
+                        qText = "结合初始小怪和跳跃方向，稍后第一次跳跃的安全区在哪里？";
+                        aText = getQ6Answer(s);
+                        break;
+                    case 7:
+                        qTitle = "7. 第一次分摊/大圈";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="text-gray-500 text-sm">影子顺序回顾：${s.shadowOrder.text}</p>
+                            </div>
+                        `;
+                        qText = "这是第一轮影子结算。双T、远程、近战分别去哪里？";
+                        aText = getQ7Answer(s);
+                        break;
+                    case 8:
+                        qTitle = "8. 第一次场地安全区";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="text-gray-500 text-sm">现在分身跳跃落地...</p>
+                            </div>
+                        `;
+                        qText = "前往刚才预判的安全区。是哪里？";
+                        aText = getQ8Answer(s);
+                        break;
+                    case 9:
+                        qTitle = "9. 第二次分摊/大圈";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="text-gray-500 text-sm">影子顺序回顾：${s.shadowOrder.text}</p>
+                            </div>
+                        `;
+                        qText = "这是第二轮影子结算。去哪里处理？";
+                        aText = getQ9Answer(s);
+                        break;
+                    case 10:
+                        qTitle = "10. 第二次场地安全区";
+                        qContext = `
+                            <div class="info-box">
+                                <p class="text-gray-500 text-sm">最后一次跳跃结算...</p>
+                            </div>
+                        `;
+                        qText = "最后的安全区在哪里？";
+                        aText = getQ10Answer(s);
+                        break;
+                }
+
+                content = `
+                    <div class="card p-6 fade-in relative overflow-hidden">
+                        <div class="phase-indicator bg-blue-500 absolute top-0 left-0" style="width: ${(state.step / 10) * 100}%"></div>
+                        
+                        <div class="flex justify-between items-center mb-6 mt-2">
+                            <h2 class="text-xl font-bold tracking-tight">${qTitle}</h2>
+                            <span class="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-1 rounded-full">${state.step}/10</span>
+                        </div>
+
+                        ${qContext}
+
+                        <div class="mb-8">
+                            <p class="text-lg font-bold mb-2 text-gray-900">❓ 思考</p>
+                            <p class="text-gray-700 leading-relaxed">${qText}</p>
+                        </div>
+
+                        ${state.showAnswer ? `
+                            <div class="bg-green-50 border border-green-100 p-5 rounded-xl mb-6 fade-in shadow-inner">
+                                <div class="flex items-center mb-2">
+                                    <div class="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center text-white text-xs font-bold mr-2">✓</div>
+                                    <p class="text-sm text-green-800 font-bold">正确答案</p>
+                                </div>
+                                <div class="text-gray-800 leading-relaxed pl-7">${aText}</div>
+                            </div>
+                            <button class="btn" onclick="nextStep()">${state.step === 10 ? '完成演练' : '下一题'}</button>
+                        ` : `
+                            <button class="btn btn-secondary" onclick="toggleAnswer()">查看答案</button>
+                        `}
+                    </div>
+                `;
+            }
+
+            app.innerHTML = content;
+        }
+
+        render();
+
+    </script>
+</body>
+</html>
